@@ -19,7 +19,7 @@ function getApiBaseUrl() {
     if (hostname === 'localhost' || hostname === '127.0.0.1' || protocol === 'file:') {
         // Local development
         apiUrl = 'http://localhost:3000/api/v1';
-    } else if (hostname === 'admin.tableshare.ai' || hostname === 'partners.tableshare.ai') {
+    } else if (hostname === 'admin.tableshare.ai' || hostname === 'partners.tableshare.ai' || hostname === 'partner.tableshare.ai') {
         // Production: portals hosted on Vercel, API at backend
         apiUrl = 'https://tableshare.pixelcheese.com/api/v1';
     } else {
@@ -84,7 +84,15 @@ const api = {
                 throw new Error('Session expired');
             }
 
-            const data = await response.json();
+            const text = await response.text();
+            let data = {};
+            if (text && text.trim()) {
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    throw new Error('Invalid response from server. Please try again.');
+                }
+            }
             if (!response.ok) {
                 throw new Error(data.error || data.message || 'Request failed');
             }
@@ -100,11 +108,21 @@ const api = {
         const response = await fetch(`${API_BASE_URL}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ email, password })
         });
-        const data = await response.json();
+        const text = await response.text();
+        let data = {};
+        if (text && text.trim()) {
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                throw new Error('Invalid response from server. Please try again.');
+            }
+        }
         if (!response.ok) {
-            throw new Error(data.error || data.message || 'Login failed');
+            const msg = data.error || data.message || (response.status >= 500 ? `Server error (${response.status}). Please try again.` : 'Login failed');
+            throw new Error(msg);
         }
         if (data.token) {
             this.setToken(data.token);
@@ -123,9 +141,16 @@ const api = {
         const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ email: email.trim() })
         });
-        const data = await response.json();
+        const text = await response.text();
+        let data = {};
+        if (text && text.trim()) {
+            try { data = JSON.parse(text); } catch (e) {
+                throw new Error('Invalid response from server. Please try again.');
+            }
+        }
         if (!response.ok) {
             throw new Error(data.error || data.message || 'Request failed');
         }
@@ -136,9 +161,16 @@ const api = {
         const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ token: token.trim(), newPassword })
         });
-        const data = await response.json();
+        const text = await response.text();
+        let data = {};
+        if (text && text.trim()) {
+            try { data = JSON.parse(text); } catch (e) {
+                throw new Error('Invalid response from server. Please try again.');
+            }
+        }
         if (!response.ok) {
             throw new Error(data.error || data.message || 'Request failed');
         }
