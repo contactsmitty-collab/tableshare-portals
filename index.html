@@ -22,10 +22,10 @@
 
                 <!-- Login form -->
                 <div id="login-form-view">
-                    <form id="login-form">
+                    <form id="login-form" novalidate>
                         <div class="form-group">
                             <label for="email">Email</label>
-                            <input type="email" id="email" required placeholder="you@example.com">
+                            <input type="text" id="email" inputmode="email" autocomplete="email" required placeholder="you@example.com">
                         </div>
                         <div class="form-group">
                             <label for="password">Password</label>
@@ -41,10 +41,10 @@
 
                 <!-- Forgot password form -->
                 <div id="forgot-form-view" style="display:none;">
-                    <form id="forgot-form">
+                    <form id="forgot-form" novalidate>
                         <div class="form-group">
                             <label for="forgot-email">Email</label>
-                            <input type="email" id="forgot-email" required placeholder="you@example.com">
+                            <input type="text" id="forgot-email" inputmode="email" autocomplete="email" required placeholder="you@example.com">
                         </div>
                         <button type="submit" class="btn-primary" style="width:100%;padding:12px;font-size:14px;border:none;border-radius:8px;cursor:pointer;font-family:var(--font);font-weight:700;">Send reset link</button>
                         <p style="margin-top:14px;text-align:center;">
