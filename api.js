@@ -19,11 +19,8 @@ function getApiBaseUrl() {
     if (hostname === 'localhost' || hostname === '127.0.0.1' || protocol === 'file:') {
         // Local development
         apiUrl = 'http://localhost:3000/api/v1';
-    } else if (hostname === 'admin.tableshare.ai' || hostname === 'partners.tableshare.ai' || hostname === 'partner.tableshare.ai') {
-        // Production: portals hosted on Vercel, API at backend
-        apiUrl = 'https://tableshare.pixelcheese.com/api/v1';
     } else {
-        // Fallback: same origin (e.g. when served from backend)
+        // Production: use same protocol as the page (HTTPS recommended). No hardcoded IPs.
         const base = `${protocol}//${hostname}${port && port !== '80' && port !== '443' ? ':' + port : ''}`;
         apiUrl = base + '/api/v1';
     }
@@ -84,15 +81,7 @@ const api = {
                 throw new Error('Session expired');
             }
 
-            const text = await response.text();
-            let data = {};
-            if (text && text.trim()) {
-                try {
-                    data = JSON.parse(text);
-                } catch (e) {
-                    throw new Error('Invalid response from server. Please try again.');
-                }
-            }
+            const data = await response.json();
             if (!response.ok) {
                 throw new Error(data.error || data.message || 'Request failed');
             }
@@ -108,21 +97,11 @@ const api = {
         const response = await fetch(`${API_BASE_URL}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
             body: JSON.stringify({ email, password })
         });
-        const text = await response.text();
-        let data = {};
-        if (text && text.trim()) {
-            try {
-                data = JSON.parse(text);
-            } catch (e) {
-                throw new Error('Invalid response from server. Please try again.');
-            }
-        }
+        const data = await response.json();
         if (!response.ok) {
-            const msg = data.error || data.message || (response.status >= 500 ? `Server error (${response.status}). Please try again.` : 'Login failed');
-            throw new Error(msg);
+            throw new Error(data.error || data.message || 'Login failed');
         }
         if (data.token) {
             this.setToken(data.token);
@@ -141,16 +120,9 @@ const api = {
         const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
             body: JSON.stringify({ email: email.trim() })
         });
-        const text = await response.text();
-        let data = {};
-        if (text && text.trim()) {
-            try { data = JSON.parse(text); } catch (e) {
-                throw new Error('Invalid response from server. Please try again.');
-            }
-        }
+        const data = await response.json();
         if (!response.ok) {
             throw new Error(data.error || data.message || 'Request failed');
         }
@@ -161,16 +133,9 @@ const api = {
         const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
             body: JSON.stringify({ token: token.trim(), newPassword })
         });
-        const text = await response.text();
-        let data = {};
-        if (text && text.trim()) {
-            try { data = JSON.parse(text); } catch (e) {
-                throw new Error('Invalid response from server. Please try again.');
-            }
-        }
+        const data = await response.json();
         if (!response.ok) {
             throw new Error(data.error || data.message || 'Request failed');
         }
@@ -252,6 +217,11 @@ const api = {
         return data.stats || data;
     },
 
+    async getStatsTrends(metric = 'checkins', days = 30) {
+        const data = await this.request(`/admin/stats/trends?metric=${encodeURIComponent(metric)}&days=${days}`);
+        return data;
+    },
+
     async getCheckins(restaurantId = null) {
         const endpoint = restaurantId ? `/admin/checkins?restaurant_id=${restaurantId}` : '/admin/checkins';
         const data = await this.request(endpoint);
@@ -262,5 +232,58 @@ const api = {
         const endpoint = restaurantId ? `/admin/ratings?restaurant_id=${restaurantId}` : '/admin/ratings';
         const data = await this.request(endpoint);
         return Array.isArray(data) ? data : data.ratings || [];
+    },
+
+    async getReports(params = {}) {
+        const qs = new URLSearchParams();
+        if (params.status) qs.set('status', params.status);
+        if (params.target_type) qs.set('target_type', params.target_type);
+        if (params.limit) qs.set('limit', params.limit);
+        if (params.offset) qs.set('offset', params.offset);
+        const endpoint = `/admin/reports${qs.toString() ? '?' + qs : ''}`;
+        const data = await this.request(endpoint);
+        return data;
+    },
+
+    async updateReport(id, updates) {
+        return await this.request(`/admin/reports/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(updates)
+        });
+    },
+
+    async getPromotions(restaurantId) {
+        const data = await this.request(`/admin/restaurants/${restaurantId}/promotions`);
+        return data.promotions || [];
+    },
+
+    async createPromotion(restaurantId, promo) {
+        return await this.request(`/admin/restaurants/${restaurantId}/promotions`, {
+            method: 'POST',
+            body: JSON.stringify(promo)
+        });
+    },
+
+    async updatePromotion(restaurantId, promoId, updates) {
+        return await this.request(`/admin/restaurants/${restaurantId}/promotions/${promoId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(updates)
+        });
+    },
+
+    async deletePromotion(restaurantId, promoId) {
+        return await this.request(`/admin/restaurants/${restaurantId}/promotions/${promoId}`, {
+            method: 'DELETE'
+        });
+    },
+
+    async getBlocks() {
+        const data = await this.request('/admin/blocks');
+        return data;
+    },
+
+    async getWaitlist(restaurantId) {
+        const data = await this.request(`/admin/restaurants/${restaurantId}/waitlist`);
+        return data.waitlist || [];
     }
 };

@@ -1,26 +1,36 @@
 # TableShare Portals (Admin + Restaurant)
 
-Static HTML/JS/CSS for the **admin** and **restaurant partner** dashboards. Deployed to Vercel at:
+Static HTML/JS/CSS for the login and dashboards at **tableshare.pixelcheese.com**. The backend serves these files from `portals/` when you run the API server.
 
-- **admin.tableshare.ai** – TableShare staff
-- **partners.tableshare.ai** – Restaurant partners
+## How to update the portal
 
-Both URLs serve the same app; the backend determines which dashboard to show after login.
+### Option A: Backend runs from this repo on the server (e.g. git clone)
 
-## Deploy on Vercel
+1. On your machine, commit and push your portal changes.
+2. On the server:
+   ```bash
+   cd /opt/tableshare-backend   # or wherever the app lives
+   git pull
+   pm2 restart tableshare-api   # or however you run the Node app
+   ```
+   The server will now serve the updated files from `portals/`.
 
-1. Import this repo: [Vercel](https://vercel.com) → Add New → Project → Import `tableshare-portals`
-2. **Framework Preset:** Other (static)
-3. **Build Command:** (leave empty)
-4. **Output Directory:** `.`
-5. Add domains in Settings → Domains: `admin.tableshare.ai`, `partners.tableshare.ai`
+### Option B: Upload only the portal files (no git on server)
 
-## API
+From your Mac, inside **tableshare-backend**:
 
-The portals call the TableShare API at `https://tableshare.pixelcheese.com/api/v1`. To change this, edit `api.js` → `getApiBaseUrl()`.
+```bash
+bash deploy-portals.sh
+```
 
-For local testing, set `localStorage.setItem('tableshare_api_url', 'http://localhost:3000/api/v1')` in the browser console.
+That copies `portals/*` to the server at `/opt/tableshare-backend/portals/`. Then restart the backend on the server (e.g. `pm2 restart tableshare-api`) so it picks up the new files.
 
-## Local development
+Override server or path if needed:
+```bash
+PORTALS_SERVER="root@your-server" bash deploy-portals.sh
+PORTALS_REMOTE_DIR="/opt/tableshare-backend/portals" bash deploy-portals.sh
+```
 
-Run the backend locally (e.g. from `tableshare-backend`). Open `index.html` via a local server, or use the backend's portal route if it serves static files.
+### Local testing
+
+Run the backend from **tableshare-backend** (e.g. `npm run start` or `node src/server.js`). The portal is served at the same host (e.g. http://localhost:3000). No separate deploy step.
