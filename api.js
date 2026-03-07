@@ -19,8 +19,11 @@ function getApiBaseUrl() {
     if (hostname === 'localhost' || hostname === '127.0.0.1' || protocol === 'file:') {
         // Local development
         apiUrl = 'http://localhost:3000/api/v1';
+    } else if (hostname === 'admin.tableshare.ai' || hostname === 'partners.tableshare.ai' || hostname === 'partner.tableshare.ai') {
+        // Production: portals hosted on Vercel, API at backend
+        apiUrl = 'https://tableshare.pixelcheese.com/api/v1';
     } else {
-        // Production: use same protocol as the page (HTTPS recommended). No hardcoded IPs.
+        // Fallback: same origin (e.g. when served from backend)
         const base = `${protocol}//${hostname}${port && port !== '80' && port !== '443' ? ':' + port : ''}`;
         apiUrl = base + '/api/v1';
     }
@@ -81,7 +84,20 @@ const api = {
                 throw new Error('Session expired');
             }
 
-            const data = await response.json();
+            const text = await response.text();
+            let data = {};
+            if (text && text.trim()) {
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    const isHtml = text.trimStart().startsWith('<');
+                    const msg = isHtml
+                        ? 'The API returned an HTML page instead of JSON. Check that https://tableshare.pixelcheese.com is reachable and CORS allows ' + window.location.origin + '.'
+                        : 'Invalid response from server. Please try again.';
+                    console.error('API parse error:', endpoint, 'status:', response.status, 'preview:', text.slice(0, 80));
+                    throw new Error(msg);
+                }
+            }
             if (!response.ok) {
                 throw new Error(data.error || data.message || 'Request failed');
             }
@@ -97,11 +113,25 @@ const api = {
         const response = await fetch(`${API_BASE_URL}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ email, password })
         });
-        const data = await response.json();
+            const text = await response.text();
+            let data = {};
+            if (text && text.trim()) {
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    if (text.trimStart().startsWith('<')) {
+                        console.error('API returned HTML instead of JSON:', text.slice(0, 200));
+                        throw new Error('API returned an error page. Check that tableshare.pixelcheese.com is reachable and CORS allows partner.tableshare.ai.');
+                    }
+                    throw new Error('Invalid response from server. Please try again.');
+                }
+            }
         if (!response.ok) {
-            throw new Error(data.error || data.message || 'Login failed');
+            const msg = data.error || data.message || (response.status >= 500 ? `Server error (${response.status}). Please try again.` : 'Login failed');
+            throw new Error(msg);
         }
         if (data.token) {
             this.setToken(data.token);
@@ -120,9 +150,16 @@ const api = {
         const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ email: email.trim() })
         });
-        const data = await response.json();
+        const text = await response.text();
+        let data = {};
+        if (text && text.trim()) {
+            try { data = JSON.parse(text); } catch (e) {
+                throw new Error('Invalid response from server. Please try again.');
+            }
+        }
         if (!response.ok) {
             throw new Error(data.error || data.message || 'Request failed');
         }
@@ -133,9 +170,16 @@ const api = {
         const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ token: token.trim(), newPassword })
         });
-        const data = await response.json();
+        const text = await response.text();
+        let data = {};
+        if (text && text.trim()) {
+            try { data = JSON.parse(text); } catch (e) {
+                throw new Error('Invalid response from server. Please try again.');
+            }
+        }
         if (!response.ok) {
             throw new Error(data.error || data.message || 'Request failed');
         }
@@ -146,8 +190,12 @@ const api = {
         if (this.user) return this.user;
         const stored = localStorage.getItem('tableshare_user');
         if (stored) {
-            this.user = JSON.parse(stored);
-            return this.user;
+            try {
+                this.user = JSON.parse(stored);
+                return this.user;
+            } catch (e) {
+                localStorage.removeItem('tableshare_user');
+            }
         }
         const data = await this.request('/users/me');
         this.user = data.user;
@@ -218,8 +266,8 @@ const api = {
     },
 
     async getStatsTrends(metric = 'checkins', days = 30) {
-        const data = await this.request(`/admin/stats/trends?metric=${encodeURIComponent(metric)}&days=${days}`);
-        return data;
+        const q = new URLSearchParams({ metric, days });
+        return await this.request('/admin/stats/trends?' + q.toString());
     },
 
     async getCheckins(restaurantId = null) {
@@ -235,14 +283,14 @@ const api = {
     },
 
     async getReports(params = {}) {
-        const qs = new URLSearchParams();
-        if (params.status) qs.set('status', params.status);
-        if (params.target_type) qs.set('target_type', params.target_type);
-        if (params.limit) qs.set('limit', params.limit);
-        if (params.offset) qs.set('offset', params.offset);
-        const endpoint = `/admin/reports${qs.toString() ? '?' + qs : ''}`;
-        const data = await this.request(endpoint);
-        return data;
+        const q = new URLSearchParams();
+        if (params.status) q.set('status', params.status);
+        if (params.target_type) q.set('target_type', params.target_type);
+        if (params.limit) q.set('limit', params.limit);
+        if (params.offset) q.set('offset', params.offset);
+        const suffix = q.toString() ? '?' + q.toString() : '';
+        const data = await this.request('/admin/reports' + suffix);
+        return data.reports || [];
     },
 
     async updateReport(id, updates) {
